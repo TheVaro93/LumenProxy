@@ -2,9 +2,9 @@
   "name": "ph-proxy-bot",
   "version": "1.0.0",
   "description": "Bot Discord qui remplace les liens viewkey par un lien proxifié.",
-  "main": "index.js",
+  "main": "bot.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node bot.js"
   },
   "engines": {
     "node": ">=16"
