@@ -120,16 +120,14 @@
     } else {
       const directUrl = 'https://www.pornhub.com/view_video.php?viewkey=' + encodeURIComponent(id);
       const embedUrl = 'https://www.pornhub.com/embed/' + encodeURIComponent(id);
-      const autoOpen = new URL(window.location.href).searchParams.get('open') === '1';
 
       openDirect.href = directUrl;
       rawUrl.textContent = directUrl;
 
-      // If embedding is blocked by source policy, we still keep a direct-open path.
+      // Try to load embed, show fallback if it fails or is blocked
       player.src = embedUrl;
       const timeout = setTimeout(() => {
         fallback.classList.add('show');
-        if (autoOpen) window.location.replace(directUrl);
       }, 2500);
 
       player.addEventListener('load', () => {

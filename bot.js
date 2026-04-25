@@ -49,7 +49,6 @@ function extractPhId(text) {
 function buildProxyUrl(id) {
   const url = new URL(proxyBaseUrl.toString());
   url.searchParams.set('v', id);
-  url.searchParams.set('open', '1');
   return url.toString();
 }
 
