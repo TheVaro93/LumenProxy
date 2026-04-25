@@ -1,6 +1,25 @@
-steps:
-      - name: Déploiement direct
+name: CI/CD Prod Deployment
+
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  deploy:
+    runs-on: self-hosted 
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Mise à jour du code sur la machine
         run: |
           cd /home/thevaro93/LumenProxy
+          
+          # 2. Récupère le dernier code
           git fetch origin main
           git reset --hard origin/main
+          
+          # 3. Relance tes services si besoin (exemple)
+          # sudo systemctl restart nginx
+          echo "Déploiement terminé avec succès !"
