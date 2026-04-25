@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
 const token = (process.env.DISCORD_TOKEN || '').trim();
+const debugMessages = (process.env.DEBUG_MESSAGES || 'false').toLowerCase() === 'true';
 if (!token || token === 'PASTE_NEW_DISCORD_BOT_TOKEN_HERE') {
   console.error('Missing DISCORD_TOKEN in .env');
   process.exit(1);
@@ -28,6 +29,31 @@ function extractPhId(text) {
   return null;
 }
 
+function buildMessageSearchText(message) {
+  const chunks = [];
+
+  if (typeof message?.content === 'string' && message.content.length > 0) {
+    chunks.push(message.content);
+  }
+
+  if (Array.isArray(message?.embeds)) {
+    for (const embed of message.embeds) {
+      if (embed?.url) chunks.push(embed.url);
+      if (embed?.description) chunks.push(embed.description);
+      if (embed?.title) chunks.push(embed.title);
+    }
+  }
+
+  if (message?.attachments?.size) {
+    for (const attachment of message.attachments.values()) {
+      if (attachment?.url) chunks.push(attachment.url);
+      if (attachment?.proxyURL) chunks.push(attachment.proxyURL);
+    }
+  }
+
+  return chunks.join('\n');
+}
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -40,6 +66,11 @@ const client = new Client({
 
 client.once('clientReady', async () => {
   console.log(`Connecté en tant que ${client.user.tag}`);
+
+  client.user.setPresence({
+    status: 'online',
+    activities: [{ name: '/ping' }]
+  });
 
   try {
     await client.application.commands.set([
@@ -107,12 +138,25 @@ process.on('uncaughtException', (err) => {
   console.error('UncaughtException:', err);
 });
 
-client.on('messageCreate', async (message) => {
+async function handlePotentialLink(message) {
+  if (!message) return;
+
   try {
-    if (!message?.content) return;
+    if (message.partial) {
+      await message.fetch().catch(() => null);
+    }
+
     if (message.author?.bot) return;
 
-    const id = extractPhId(message.content);
+    const searchableText = buildMessageSearchText(message);
+
+    if (debugMessages) {
+      console.log(
+        `[debug] message recu guild=${message.guildId || 'dm'} channel=${message.channelId} author=${message.author?.tag || message.author?.id || 'unknown'} contentLen=${message.content?.length || 0} embeds=${message.embeds?.length || 0} attachments=${message.attachments?.size || 0}`
+      );
+    }
+
+    const id = extractPhId(searchableText);
     if (!id) return;
     const newUrl = `https://lumenproxy.github.io/watch/${encodeURIComponent(id)}`;
 
@@ -125,15 +169,23 @@ client.on('messageCreate', async (message) => {
     }
 
     // ⚠️ éviter spam si déjà remplacé
-    if (message.content.includes('lumenproxy.github.io')) return;
+    if (searchableText.includes('lumenproxy.github.io')) return;
 
     await message.channel.send({
       content: `📺 ${newUrl}`
     });
 
   } catch (err) {
-    console.error('Erreur messageCreate:', err);
+    console.error('Erreur traitement message:', err);
   }
+}
+
+client.on('messageCreate', async (message) => {
+  await handlePotentialLink(message);
+});
+
+client.on('messageUpdate', async (_oldMessage, newMessage) => {
+  await handlePotentialLink(newMessage);
 });
 
 client.login(token).catch(err => {
