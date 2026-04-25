@@ -1,10 +1,27 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder
+} = require('discord.js');
 
 const token = (process.env.DISCORD_TOKEN || '').trim();
 const debugMessages = (process.env.DEBUG_MESSAGES || 'false').toLowerCase() === 'true';
+const proxyBaseUrlRaw = (process.env.PROXY_BASE_URL || 'https://thevaro93.github.io/LumenProxy/').trim();
 if (!token || token === 'PASTE_NEW_DISCORD_BOT_TOKEN_HERE') {
   console.error('Missing DISCORD_TOKEN in .env');
+  process.exit(1);
+}
+
+let proxyBaseUrl;
+try {
+  proxyBaseUrl = new URL(proxyBaseUrlRaw);
+} catch {
+  console.error('Invalid PROXY_BASE_URL in .env');
   process.exit(1);
 }
 
@@ -27,6 +44,20 @@ function extractPhId(text) {
     if (match?.[1]) return match[1];
   }
   return null;
+}
+
+function buildProxyUrl(id) {
+  const url = new URL(proxyBaseUrl.toString());
+  url.searchParams.set('v', id);
+  return url.toString();
+}
+
+function isProxyUrlAlreadyPresent(text) {
+  const currentBase = `${proxyBaseUrl.origin}${proxyBaseUrl.pathname}`;
+  return (
+    text.includes(`${currentBase}?v=`) ||
+    text.includes('https://lumenproxy.github.io/?v=')
+  );
 }
 
 function buildMessageSearchText(message) {
@@ -77,28 +108,73 @@ client.once('clientReady', async () => {
       {
         name: 'ping',
         description: 'Affiche la latence du bot.'
+      },
+      {
+        name: 'link',
+        description: 'Ouvre un formulaire pour convertir un lien Pornhub.'
       }
     ]);
-    console.log('Commande /ping enregistree.');
+    console.log('Commandes /ping et /link enregistrees.');
   } catch (err) {
-    console.error('Erreur enregistrement commande /ping:', err);
+    console.error('Erreur enregistrement commandes slash:', err);
   }
 });
 
 client.on('interactionCreate', async (interaction) => {
   try {
-    if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName !== 'ping') return;
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === 'ping') {
+        await interaction.reply({
+          content: 'Pong... calcul de la latence en cours'
+        });
 
-    const reply = await interaction.reply({
-      content: 'Pong... calcul de la latence en cours',
-      fetchReply: true
-    });
+        const reply = await interaction.fetchReply();
+        const roundtrip = reply.createdTimestamp - interaction.createdTimestamp;
+        const api = Math.round(client.ws.ping);
 
-    const roundtrip = reply.createdTimestamp - interaction.createdTimestamp;
-    const api = Math.round(client.ws.ping);
+        await interaction.editReply(`Pong ! Latence: ${roundtrip}ms | API: ${api}ms`);
+        return;
+      }
 
-    await interaction.editReply(`Pong ! Latence: ${roundtrip}ms | API: ${api}ms`);
+      if (interaction.commandName === 'link') {
+        const modal = new ModalBuilder()
+          .setCustomId('link_modal')
+          .setTitle('Convertir un lien');
+
+        const input = new TextInputBuilder()
+          .setCustomId('link_input')
+          .setLabel('Lien Pornhub')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('https://fr.pornhub.com/view_video.php?viewkey=...')
+          .setRequired(true);
+
+        const row = new ActionRowBuilder().addComponents(input);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === 'link_modal') {
+      const rawUrl = interaction.fields.getTextInputValue('link_input');
+      const id = extractPhId(rawUrl);
+
+      if (!id) {
+        await interaction.reply({
+          content: 'Lien invalide. Envoie un lien Pornhub avec viewkey ou /embed/.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      const newUrl = buildProxyUrl(id);
+      await interaction.reply({
+        content: `📺 ${newUrl}`
+      });
+    }
   } catch (err) {
     console.error('Erreur interactionCreate:', err);
   }
@@ -158,7 +234,7 @@ async function handlePotentialLink(message) {
 
     const id = extractPhId(searchableText);
     if (!id) return;
-    const newUrl = `https://lumenproxy.github.io/watch/${encodeURIComponent(id)}`;
+    const newUrl = buildProxyUrl(id);
 
     const deleteOnReplace =
       (process.env.DELETE_ON_REPLACE || 'true').toLowerCase() === 'true';
@@ -169,7 +245,7 @@ async function handlePotentialLink(message) {
     }
 
     // ⚠️ éviter spam si déjà remplacé
-    if (searchableText.includes('lumenproxy.github.io')) return;
+    if (isProxyUrlAlreadyPresent(searchableText)) return;
 
     await message.channel.send({
       content: `📺 ${newUrl}`
