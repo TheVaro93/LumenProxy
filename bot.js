@@ -7,9 +7,9 @@ if (!token || token === 'PASTE_NEW_DISCORD_BOT_TOKEN_HERE') {
   process.exit(1);
 }
 
-// Basic guard to fail fast on obviously wrong values.
-if (!/^[A-Za-z0-9_\-.]{20,}$/.test(token)) {
-  console.error('Invalid DISCORD_TOKEN format in .env');
+// Discord bot tokens are JWT-like and usually contain 3 dot-separated parts.
+if (!/^[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}$/.test(token)) {
+  console.error('Invalid DISCORD_TOKEN format in .env (expected 3 dot-separated parts)');
   process.exit(1);
 }
 
@@ -26,8 +26,39 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-client.once('ready', () => {
-  console.log(`✅ Connecté en tant que ${client.user.tag}`);
+client.once('clientReady', async () => {
+  console.log(`Connecté en tant que ${client.user.tag}`);
+
+  try {
+    await client.application.commands.set([
+      {
+        name: 'ping',
+        description: 'Affiche la latence du bot.'
+      }
+    ]);
+    console.log('Commande /ping enregistree.');
+  } catch (err) {
+    console.error('Erreur enregistrement commande /ping:', err);
+  }
+});
+
+client.on('interactionCreate', async (interaction) => {
+  try {
+    if (!interaction.isChatInputCommand()) return;
+    if (interaction.commandName !== 'ping') return;
+
+    const reply = await interaction.reply({
+      content: 'Pong... calcul de la latence en cours',
+      fetchReply: true
+    });
+
+    const roundtrip = reply.createdTimestamp - interaction.createdTimestamp;
+    const api = Math.round(client.ws.ping);
+
+    await interaction.editReply(`Pong ! Latence: ${roundtrip}ms | API: ${api}ms`);
+  } catch (err) {
+    console.error('Erreur interactionCreate:', err);
+  }
 });
 
 client.on('messageCreate', async (message) => {
@@ -62,6 +93,11 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(token).catch(err => {
+  const msg = String(err?.message || '');
+  if (msg.includes('Used disallowed intents')) {
+    console.error('Erreur connexion bot: Message Content Intent non autorisé.');
+  }
+
   console.error('Erreur connexion bot:', err);
   process.exit(1);
 });
