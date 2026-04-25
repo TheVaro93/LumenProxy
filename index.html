@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Preview Discord -->
   <meta property="og:title" content="Vidéo">
@@ -12,22 +13,139 @@
     body {
       margin: 0;
       background: black;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      min-height: 100vh;
+    }
+    .wrap {
+      position: relative;
+      width: 100%;
+      height: 100vh;
     }
     iframe {
       width: 100%;
       height: 100vh;
       border: none;
     }
+    .fallback {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.84);
+      padding: 24px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .fallback.show {
+      display: flex;
+    }
+    .card {
+      max-width: 680px;
+    }
+    .card h1 {
+      margin: 0 0 10px;
+      font-size: 1.5rem;
+    }
+    .card p {
+      margin: 0 0 16px;
+      opacity: 0.92;
+      line-height: 1.4;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 16px;
+      border-radius: 8px;
+      background: #3b82f6;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 4px;
+    }
+    .btn.secondary {
+      background: #2b2b2b;
+      border: 1px solid #454545;
+    }
+    .small {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      opacity: 0.7;
+      word-break: break-all;
+    }
   </style>
 </head>
 
 <body>
-  <iframe id="player" allowfullscreen></iframe>
+  <div class="wrap">
+    <iframe id="player" allowfullscreen referrerpolicy="no-referrer"></iframe>
+    <div id="fallback" class="fallback" aria-live="polite">
+      <div class="card">
+        <h1>Lecture intégrée bloquée</h1>
+        <p>Le site source bloque l'affichage en iframe dans certains navigateurs. Ouvre la vidéo directement dans un nouvel onglet.</p>
+        <a id="openDirect" class="btn" target="_blank" rel="noopener noreferrer">Ouvrir la vidéo</a>
+        <a id="retryEmbed" class="btn secondary" href="#">Réessayer l'embed</a>
+        <div id="rawUrl" class="small"></div>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const id = window.location.pathname.split("/").pop();
-    document.getElementById("player").src =
-      "https://www.pornhub.com/embed/" + id;
+    function getIdFromUrl() {
+      const url = new URL(window.location.href);
+      const queryId = url.searchParams.get('v');
+      if (queryId) return queryId;
+
+      const hash = url.hash.replace(/^#\/?/, '');
+      const hashMatch = hash.match(/(?:watch\/)?([A-Za-z0-9_-]+)/);
+      if (hashMatch && hashMatch[1]) return hashMatch[1];
+
+      const pathParts = url.pathname.split('/').filter(Boolean);
+      const last = pathParts[pathParts.length - 1];
+      if (last && last !== 'watch' && /^[A-Za-z0-9_-]+$/.test(last)) return last;
+
+      return null;
+    }
+
+    const id = getIdFromUrl();
+    const player = document.getElementById('player');
+    const fallback = document.getElementById('fallback');
+    const openDirect = document.getElementById('openDirect');
+    const rawUrl = document.getElementById('rawUrl');
+    const retryEmbed = document.getElementById('retryEmbed');
+
+    if (!id) {
+      fallback.classList.add('show');
+      rawUrl.textContent = 'ID introuvable dans l\'URL.';
+    } else {
+      const directUrl = 'https://www.pornhub.com/view_video.php?viewkey=' + encodeURIComponent(id);
+      const embedUrl = 'https://www.pornhub.com/embed/' + encodeURIComponent(id);
+      const autoOpen = new URL(window.location.href).searchParams.get('open') === '1';
+
+      if (autoOpen) {
+        window.location.replace(directUrl);
+      }
+
+      openDirect.href = directUrl;
+      rawUrl.textContent = directUrl;
+
+      // If embedding is blocked by source policy, we still keep a direct-open path.
+      player.src = embedUrl;
+      const timeout = setTimeout(() => {
+        fallback.classList.add('show');
+        if (autoOpen) window.location.href = directUrl;
+      }, 2500);
+
+      player.addEventListener('load', () => {
+        clearTimeout(timeout);
+      });
+
+      retryEmbed.addEventListener('click', (e) => {
+        e.preventDefault();
+        fallback.classList.remove('show');
+        player.src = embedUrl + '&r=' + Date.now();
+      });
+    }
   </script>
 </body>
 </html>
