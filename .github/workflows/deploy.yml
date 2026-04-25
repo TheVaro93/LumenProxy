@@ -1,20 +1,6 @@
-name: Deploy to Production
-
-on:
-  push:
-    branches:
-      - main  # Déclenche le déploiement lors d'un push sur main
-
-jobs:
-  deploy:
-    runs-on: self-hosted  # C'est ici qu'on cible ta machine Mint
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Pull latest changes
+steps:
+      - name: Déploiement direct
         run: |
-          cd /chemin/vers/ton/projet
-          git pull origin main
-          # Ajoute ici tes commandes de build (ex: npm install, docker-compose up -d, etc.)
-          systemctl restart ton-application.service
+          cd /home/thevaro93/LumenProxy
+          git fetch origin main
+          git reset --hard origin/main
