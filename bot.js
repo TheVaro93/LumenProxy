@@ -61,6 +61,40 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+client.on('shardDisconnect', (event, shardId) => {
+  console.error(`Shard ${shardId} deconnecte (code=${event.code}, reason=${event.reason || 'n/a'})`);
+});
+
+client.on('shardReconnecting', (shardId) => {
+  console.warn(`Shard ${shardId} reconnexion en cours...`);
+});
+
+client.on('shardResume', (replayedEvents, shardId) => {
+  console.log(`Shard ${shardId} reconnecte (events rejoues=${replayedEvents})`);
+});
+
+client.on('error', (err) => {
+  console.error('Erreur client Discord:', err);
+});
+
+client.on('warn', (info) => {
+  console.warn('Avertissement Discord:', info);
+});
+
+setInterval(() => {
+  const ws = client.ws?.status;
+  const ping = Math.round(client.ws?.ping ?? -1);
+  console.log(`Heartbeat bot: wsStatus=${ws} ping=${ping}ms`);
+}, 30000);
+
+process.on('unhandledRejection', (reason) => {
+  console.error('UnhandledRejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('UncaughtException:', err);
+});
+
 client.on('messageCreate', async (message) => {
   try {
     if (!message?.content) return;
