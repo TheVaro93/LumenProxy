@@ -13,8 +13,20 @@ if (!/^[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}$/.test(token)) 
   process.exit(1);
 }
 
-// Regex améliorée (gère plus de cas)
-const phRegex = /pornhub\.com\/view_video\.php\?viewkey=([a-zA-Z0-9-_]+)/i;
+const phPatterns = [
+  /https?:\/\/(?:[\w-]+\.)?pornhub\.com\/view_video\.php\?(?:[^\s#]*&)?viewkey=([A-Za-z0-9_-]+)/i,
+  /https?:\/\/(?:[\w-]+\.)?pornhub\.com\/embed\/([A-Za-z0-9_-]+)/i,
+  /(?:[\w-]+\.)?pornhub\.com\/view_video\.php\?(?:[^\s#]*&)?viewkey=([A-Za-z0-9_-]+)/i,
+  /(?:[\w-]+\.)?pornhub\.com\/embed\/([A-Za-z0-9_-]+)/i
+];
+
+function extractPhId(text) {
+  for (const pattern of phPatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
 
 const client = new Client({
   intents: [
@@ -100,10 +112,8 @@ client.on('messageCreate', async (message) => {
     if (!message?.content) return;
     if (message.author?.bot) return;
 
-    const match = message.content.match(phRegex);
-    if (!match) return;
-
-    const id = match[1];
+    const id = extractPhId(message.content);
+    if (!id) return;
     const newUrl = `https://lumenproxy.github.io/watch/${encodeURIComponent(id)}`;
 
     const deleteOnReplace =
